@@ -9,6 +9,10 @@ if os.name == 'posix':
     CONFIG_FILE_PATH = os.path.expanduser('~/.local/linkwarden_companion/config.ini')
 elif os.name == 'nt':
     CONFIG_FILE_PATH = os.path.join(os.getenv('APPDATA'), 'linkwarden_companion', 'config.ini')
+elif os.environ.get('COMPANION_CONFIG_LOCATION') is not None:
+    CONFIG_FILE_PATH = os.environ.get('COMPANION_CONFIG_LOCATION')
+else:
+    raise ValueError("Could not determine the config file location, please set COMPANION_CONFIG_LOCATION")
 
 
 class LinkwardenCompanionConfig(configparser.ConfigParser):
