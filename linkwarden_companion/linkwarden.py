@@ -7,7 +7,9 @@ from typing import Union, List
 from linkwarden_companion.models import (BaseModel,
                                          ALL_MODELS,
                                          Link,
-                                         NewLink)
+                                         NewLink,
+                                         Tag,
+                                         Collection)
 from linkwarden_companion.config import LINKWARDEN_COMPANION_CONFIG
 
 
@@ -59,7 +61,7 @@ class Linkwarden:
         """
         for model in ALL_MODELS:
             try:
-                return model.parse_obj(data)
+                return model.model_validate(data)
             except pydantic.ValidationError:
                 pass
         raise ValueError("Could not parse data to any model")
@@ -90,7 +92,7 @@ class Linkwarden:
         response = requests.post(urlparse.urljoin(self.api_base, endpoint),
                                  headers={'Authorization': f"Bearer {self.token}"},
                                  json=data)
-        return response.json()
+        return response.json()["response"]
 
     def delete(self, endpoint: str):
         """
@@ -100,7 +102,7 @@ class Linkwarden:
         """
         response = requests.delete(urlparse.urljoin(self.api_base, endpoint),
                                    headers={'Authorization': f"Bearer {self.token}"})
-        return response.json()
+        return response.json()["response"]
 
     def put(self, endpoint: str, data: dict):
         """
@@ -112,7 +114,7 @@ class Linkwarden:
         response = requests.put(urlparse.urljoin(self.api_base, endpoint),
                                 headers={'Authorization': f"Bearer {self.token}"},
                                 json=data)
-        return response.json()
+        return response.json()["response"]
 
     def patch(self, endpoint: str, data: dict):
         """
@@ -124,7 +126,7 @@ class Linkwarden:
         response = requests.patch(urlparse.urljoin(self.api_base, endpoint),
                                   headers={'Authorization': f"Bearer {self.token}"},
                                   json=data)
-        return response.json()
+        return response.json()["response"]
 
     def get_links(self) -> List[Link]:
         """
@@ -132,7 +134,7 @@ class Linkwarden:
         :return: JSON response
         """
         raw_links = self.get('links')
-        return [Link.parse_obj(link) for link in raw_links]
+        return [Link.model_validate(link) for link in raw_links]
 
     def get_link(self, link_id: int) -> Link:
         """
@@ -141,7 +143,7 @@ class Linkwarden:
         :return: JSON response
         """
         raw_link = self.get(f'links/{link_id}')
-        return Link.parse_obj(raw_link)
+        return Link.model_validate(raw_link)
 
     def create_link(self, link: Union[dict, NewLink]) -> Link:
         """
@@ -150,4 +152,22 @@ class Linkwarden:
         :return: JSON response
         """
         raw_link = self.post('links', link.dict() if isinstance(link, NewLink) else link)
-        return Link.parse_obj(raw_link)
+        if raw_link == "Link already exists":
+            raise ValueError("Link already exists")
+        return Link.model_validate(raw_link)
+
+    def get_tags(self) -> List[Tag]:
+        """
+        Get all tags
+        :return: JSON response
+        """
+        raw_tags = self.get('tags')
+        return [Tag.model_validate(tag) for tag in raw_tags]
+
+    def get_collections(self):
+        """
+        Get all collections
+        :return: JSON response
+        """
+        raw_collections = self.get('collections')
+        return [Collection.model_validate(collection) for collection in raw_collections]

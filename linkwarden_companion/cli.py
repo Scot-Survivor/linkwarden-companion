@@ -1,12 +1,13 @@
 import click
+import traceback
 
 from collections.abc import Callable
 from linkwarden_companion import logger
 from linkwarden_companion.messages import *
-from linkwarden_companion.models import NewLink
 from linkwarden_companion.utils import command_tree
 from linkwarden_companion.linkwarden import Linkwarden
 from linkwarden_companion.config import LINKWARDEN_COMPANION_CONFIG
+from linkwarden_companion.models import NewLink, LinkType, valid_link_types
 
 
 def require_linkwarden(function: Callable):
@@ -36,6 +37,8 @@ def echo(message: str, level: str = 'debug'):
     function_to_call(message)
     click.echo(message)
     if level in ['error', 'critical']:
+        # debug the traceback
+        echo(traceback.format_exc(), 'debug')
         raise click.Abort()
 
 
@@ -99,38 +102,43 @@ def list_links(linkwarden: Linkwarden, verbose: int):
     echo("Listing all links")
     links = linkwarden.get_links()
     for link in links:
-        verbose_level = {
-            0: "\tID: {id} Name: {name} URL: {url} Collection: {collectionId} Created By: {createdById}",
-            1: "\tID: {id} Name: {name} URL: {url} Collection: {collectionId}"
-               " Created By: {createdById} Description: {description}",
-        }
-        if verbose <= 2:
-            echo(verbose_level[verbose].format(**link.model_dump()))
-        else:
-            echo(link.json())
+        echo(link.get_string(verbosity=verbose))
 
 
 @links_group.command(name="add-link")
-@click.argument('name')
 @click.argument('url')
+@click.option('-n', '--name', help="Link name", default="")
 @click.option('-d', '--description', help="Link description", default="")
-@click.option('-c', '--collection', help="Collection ID", default=0)
-@click.option('-i', '--icon', help="Link icon", default=None)
-@click.option('-w', '--icon-weight', help="Link icon weight", default=None)
-@click.option('-C', '--color', help="Link color", default=None)
+@click.option('-c', '--collection', help="Collection ID", default=None)
+@click.option('-t', '--link-type', help="Link type", default='url',
+              type=click.Choice(valid_link_types))
+@click.option('-v', '--verbose', help="Verbosity level", default=0, count=True)
+@click.option('-T', '--tag', help="Add tag IDs, you might add multiple",
+              default=None, multiple=True)
 @require_linkwarden
 def add_link(linkwarden: Linkwarden, name: str, url: str,
-             description: str, collection: int, icon: str,
-             icon_weight: str, color: str):
+             description: str, collection: int | None, link_type: LinkType,
+             verbose: int, tag: list[int]):
     """
     Add a link
     :return:
     """
+    echo("Getting tags", 'debug')
+    tags = linkwarden.get_tags()
+    tags_to_add = [t for t in tags if t.id in tag]
+
+    echo("Getting collections", 'debug')
+    collections = linkwarden.get_collections()
+    collection = next((c for c in collections if c.id == collection), {})
+
+    echo(f"Adding {len(tags_to_add)} tag{'s' if len(tags_to_add) > 1 else ''}", 'debug')
     echo("Adding link")
-    new_link = NewLink(name=name, url=url, description=description, collectionId=collection, icon=icon,
-                       iconWeight=icon_weight, color=color)
+    new_link = NewLink(name=name, url=url, type=link_type,
+                       description=description, tags=tags_to_add,
+                       collection=collection)
     link = linkwarden.create_link(new_link)
-    echo(f"Link added with ID: {link.id}")
+    echo("New link created:")
+    echo("\t" + link.get_string(verbosity=verbose))
 
 
 command_groups = command_tree(cli).keys()
