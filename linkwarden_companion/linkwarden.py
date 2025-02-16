@@ -149,5 +149,5 @@ class Linkwarden:
         :param link: Link model
         :return: JSON response
         """
-        raw_link = self.post('links', link.dict())
+        raw_link = self.post('links', link.dict() if isinstance(link, NewLink) else link)
         return Link.parse_obj(raw_link)
